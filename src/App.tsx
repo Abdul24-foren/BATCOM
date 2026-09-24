@@ -13,6 +13,7 @@ import {
   Focus,
   LayoutDashboard,
   ListTodo,
+  LogOut,
   Menu,
   Pause,
   Plus,
@@ -34,6 +35,11 @@ import {
 } from "./db/database";
 import MissionWorkspace from "./components/missions/MissionWorkspace";
 import AIMissionGenerator from "./components/ai/AIMissionGenerator";
+import { useAuth } from "./auth/AuthProvider";
+import { LoginPage } from "./components/LoginPage";
+import { SignUpPage } from "./components/SignUpPage";
+import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
+import { ResetPasswordPage } from "./components/ResetPasswordPage";
 
 /* =========================================================
    TYPES
@@ -549,7 +555,21 @@ function MissionRow({
 ========================================================= */
 
 function App() {
+  const { session, user, profile, signOut, isLoading } = useAuth();
+  const [authView, setAuthView] = useState<"login" | "signup" | "forgot" | "reset">("login");
   const [intro, setIntro] = useState(true);
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    const hash = currentUrl.hash.startsWith("#") ? currentUrl.hash.slice(1) : currentUrl.hash;
+    const params = new URLSearchParams(hash);
+    const recoveryType = params.get("type");
+    const hasRecoveryToken = Boolean(params.get("access_token") || params.get("refresh_token"));
+
+    if ((recoveryType === "recovery" || hasRecoveryToken) && !session) {
+      setAuthView("reset");
+    }
+  }, [session]);
 
   const [missions, setMissions] =
     useState<Mission[]>(initialMissions);
@@ -738,6 +758,28 @@ function App() {
 
   const focusClock = `${String(Math.floor(focusSeconds / 60)).padStart(2, "0")}:${String(focusSeconds % 60).padStart(2, "0")}`;
 
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050505] text-yellow-400">
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 animate-pulse rounded-full border border-yellow-400/30 bg-yellow-400/10" />
+          <p className="mt-6 font-mono text-[10px] tracking-[0.35em] text-yellow-400">INITIALIZING BATCOM</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <>
+        {authView === "login" && <LoginPage onSwitch={() => setAuthView("signup")} onForgot={() => setAuthView("forgot")} />}
+        {authView === "signup" && <SignUpPage onSwitch={() => setAuthView("login")} />}
+        {authView === "forgot" && <ForgotPasswordPage onSwitch={() => setAuthView("login")} />}
+        {authView === "reset" && <ResetPasswordPage onDone={() => setAuthView("login")} />}
+      </>
+    );
+  }
+
   return (
     <>
       {/* =====================================================
@@ -887,7 +929,7 @@ function App() {
 
           {/* bottom */}
 
-          <div className="absolute bottom-5 left-4 right-4">
+<div className="absolute bottom-5 left-4 right-4 space-y-3">
             <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
               <div className="flex items-center gap-3">
                 <Shield
@@ -906,6 +948,15 @@ function App() {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#0d0d0d] px-3 py-3 text-[10px] font-bold tracking-[0.2em] text-gray-300 hover:text-yellow-400"
+            >
+              <LogOut size={14} />
+              LOG OUT
+            </button>
           </div>
         </aside>
 
@@ -937,7 +988,7 @@ function App() {
                   Good Evening,
                   <br />
                   <span className="text-gray-500">
-                    Commander.
+                    {profile?.displayName ?? user?.email?.split("@")[0] ?? "Commander"}.
                   </span>
                 </h1>
 
@@ -948,15 +999,22 @@ function App() {
                 </p>
               </div>
 
-              <button
-                onClick={() =>
-                  setNewMissionOpen(true)
-                }
-                className="flex items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400 px-5 py-3 text-xs font-black tracking-wider text-black transition hover:bg-yellow-300"
-              >
-                <Plus size={17} />
-                DEPLOY NEW MISSION
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="hidden rounded-lg border border-white/10 bg-[#0b0b0b] px-3 py-2 text-right md:block">
+                  <div className="font-mono text-[9px] tracking-[0.25em] text-gray-600">USER</div>
+                  <div className="mt-1 text-xs text-gray-300">{profile?.email ?? user?.email ?? "Operational user"}</div>
+                </div>
+
+                <button
+                  onClick={() =>
+                    setNewMissionOpen(true)
+                  }
+                  className="flex items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400 px-5 py-3 text-xs font-black tracking-wider text-black transition hover:bg-yellow-300"
+                >
+                  <Plus size={17} />
+                  DEPLOY NEW MISSION
+                </button>
+              </div>
             </div>
 
             {/* =================================================
